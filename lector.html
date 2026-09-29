@@ -9,13 +9,12 @@
 <style>
   :root { --bg:#1e2126; --bar:rgba(20,22,26,.92); --fg:#eef0f3; --muted:#9aa3ad; --acc:#f5c518; --paper:#f4f0e6; }
   * { box-sizing:border-box; }
-  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+  html, body { touch-action:none; margin:0; height:100%; background:var(--bg); color:var(--fg);
     font:15px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow:hidden; }
   #stage { position:fixed; inset:0 0 56px 0; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none; }
   #stage.pan { cursor:grab; } #stage.drag { cursor:grabbing; }
   #book { position:absolute; transform-origin:50% 50%; }
   #book.anim { transition:transform .32s cubic-bezier(.2,.7,.2,1); }
-  #book.moving { will-change:transform; }
   #book .pg { position:absolute; top:0; height:100%; overflow:hidden; background:#fff; }
   #book .slot, #under { box-shadow:0 8px 30px rgba(0,0,0,.5); }
   #book img { display:block; width:100%; height:100%; object-fit:fill; pointer-events:none; -webkit-user-drag:none; }
@@ -80,7 +79,7 @@
   document.title = BK.titulo + ' · C.E.I.P. Carlos III';
   var N = BK.paginas, LAST = N - 1, AR = BK.ancho / BK.alto;   // todas las páginas se estiran a esta proporción
   var KEY = 'libro-' + BK.id;
-  var ZMIN = 1, ZMAX = 6;
+  var ZMIN = 1, ZMAX = 4;                              // más zoom no aporta detalle y satura la memoria en móviles
   var $ = function (id) { return document.getElementById(id); };
   var stage = $('stage'), book = $('book'), slider = $('slider'), lbl = $('lbl');
   var slots = book.querySelectorAll('.slot');
@@ -155,6 +154,7 @@
     S.x = Math.max(-mx, Math.min(mx, S.x)); S.y = Math.max(-my, Math.min(my, S.y));
   }
   function apply() {
+    if (!isFinite(S.x) || !isFinite(S.y) || !isFinite(S.z)) { S.x = S.y = 0; S.z = 1; }
     clamp();
     book.style.transform = 'translate(' + S.x + 'px,' + S.y + 'px) rotate(' + S.rot + 'deg) scale(' + S.z + ')';
     stage.classList.toggle('pan', S.z > 1);
@@ -167,8 +167,6 @@
     book.classList.add('anim'); fn();
     clearTimeout(animated.t); animated.t = setTimeout(function () { book.classList.remove('anim'); }, 340);
   }
-  var movingT;
-  function moving() { book.classList.add('moving'); clearTimeout(movingT); movingT = setTimeout(function () { book.classList.remove('moving'); }, 200); }
   function rel(e) { var r = stage.getBoundingClientRect(); return [e.clientX - r.left - vw / 2, e.clientY - r.top - vh / 2]; }
   function toLocal(e) {                    // punto de pantalla -> coordenadas del libro (sin giro ni zoom)
     var c = rel(e), a = -S.rot * Math.PI / 180, dx = c[0] - S.x, dy = c[1] - S.y;
@@ -338,7 +336,7 @@
     else if (k === 'End') { cancelFlip(); show(LAST); }
     else if (k === '+' || k === '=') $('zin').onclick();
     else if (k === '-') $('zout').onclick();
-    else if (k === '0') $('fit').onclick();
+    else if (k === '0' || k === 'Escape') $('fit').onclick();
     else if (k === 'r') rotate(90);
     else if (k === 'R') rotate(-90);
     else if (k === 'd' || k === 'D') setMode(!S.two);
@@ -351,7 +349,7 @@
   // ---- Gestos: esquinas/laterales para pasar hoja; arrastrar, pellizcar, rueda, doble toque ----
   var Pt = new Map(), g = null, lastTap = 0;
   function edgeDir(L) {
-    var W = n * pw, zone = Math.max(pw * 0.14, 40 / S.z), m = 24 / S.z;
+    var W = n * pw, zone = Math.max(pw * 0.14, 40) / S.z, m = 24 / S.z;   // mismo tamaño en pantalla con cualquier zoom
     if (L.y < -m || L.y > H + m) return 0;
     if (L.x > W - zone && L.x < W + m) return 1;
     if (L.x < zone && L.x > -m) return -1;
@@ -383,7 +381,7 @@
       renderFlip();
       return;
     }
-    moving();
+
     if (g.pinch && Pt.size === 2) {
       var v = Array.from(Pt.values()), r = stage.getBoundingClientRect();
       var d = Math.hypot(v[0][0] - v[1][0], v[0][1] - v[1][1]);
@@ -414,8 +412,11 @@
       finish(done);
       return;
     }
-    if (g.pinch) { if (Pt.size === 0) g = null; else g = { dead: true }; return; }
-    if (g.dead) { g = null; return; }
+    if (g.pinch) {
+      if (Pt.size === 1) { var q = Array.from(Pt.values())[0]; g = { x0: q[0], y0: q[1], px: S.x, py: S.y, t: 0, moved: true }; }
+      else g = null;
+      return;
+    }
     var dt = Date.now() - g.t;
     if (!g.moved && dt < 300) {                          // doble toque: acercar / ajustar
       var now = Date.now(), c = rel(e);
@@ -430,10 +431,15 @@
   stage.addEventListener('pointercancel', up);
   stage.addEventListener('wheel', function (e) {
     e.preventDefault(); if (F) return;
-    book.classList.remove('anim'); moving();
+    book.classList.remove('anim');
     var c = rel(e);
     zoomAt(S.z * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), c[0], c[1]);
   }, { passive: false });
+  // Safari (iPhone/iPad) ignora user-scalable=no: se bloquea su zoom de página
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false }); });
+  document.addEventListener('touchmove', function (e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  var lastEnd = 0;
+  document.addEventListener('touchend', function (e) { var t = Date.now(); if (t - lastEnd < 300) e.preventDefault(); lastEnd = t; }, { passive: false });
   stage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   setMode(S.two);

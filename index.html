@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biblioteca · C.E.I.P. Carlos III</title>
+<meta name="description" content="Libros de lectura del C.E.I.P. Carlos III.">
+<link rel="icon" href="logocarlosiii.png">
+<style>
+  :root { --bg:#1e2126; --fg:#eef0f3; --muted:#9aa3ad; --card:#2a2e35; --acc:#f5c518; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display:flex; align-items:center; gap:14px; padding:24px 16px 8px; max-width:1100px; margin:0 auto; }
+  header img { width:48px; height:48px; object-fit:contain; }
+  h1 { margin:0; font-size:1.5rem; } header p { margin:2px 0 0; color:var(--muted); font-size:.95rem; }
+  main { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:24px; padding:24px 16px 40px; max-width:1100px; margin:0 auto; }
+  a.libro { color:inherit; text-decoration:none; display:block; }
+  a.libro img { display:block; width:100%; aspect-ratio:1190/1548; object-fit:fill; border-radius:4px 8px 8px 4px;
+    box-shadow:0 6px 20px rgba(0,0,0,.45); transition:transform .2s, box-shadow .2s; background:var(--card); }
+  a.libro:hover img, a.libro:focus-visible img { transform:translateY(-4px) rotate(-1deg); box-shadow:0 12px 28px rgba(0,0,0,.55); }
+  a.libro:focus-visible { outline:2px solid var(--acc); outline-offset:6px; border-radius:6px; }
+  a.libro b { display:block; margin-top:12px; font-size:1rem; }
+  a.libro span { color:var(--muted); font-size:.88rem; }
+</style>
+</head>
+<body>
+<header>
+  <img src="logocarlosiii.png" alt="">
+  <div><h1>Biblioteca</h1><p>C.E.I.P. Carlos III</p></div>
+</header>
+<main id="lista"></main>
+<script src="libros.js"></script>
+<script>
+  var lista = document.getElementById('lista');
+  LIBROS.forEach(function (b) {
+    var a = document.createElement('a');
+    a.className = 'libro'; a.href = 'lector.html?libro=' + encodeURIComponent(b.id);
+    a.innerHTML = '<img loading="lazy" alt=""><b></b><span></span>';
+    a.querySelector('img').src = b.id + '/p000.webp';
+    a.querySelector('img').style.aspectRatio = b.ancho + '/' + b.alto;
+    a.querySelector('b').textContent = b.titulo;
+    a.querySelector('span').textContent = (b.autor ? b.autor + ' · ' : '') + b.paginas + ' págs.';
+    lista.appendChild(a);
+  });
+</script>
+</body>
+</html>
